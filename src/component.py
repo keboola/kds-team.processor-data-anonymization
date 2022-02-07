@@ -45,6 +45,7 @@ class Component(ComponentBase):
         columns_to_anonymize = self.validate_columns_to_anonymize(columns, table_columns, in_table.name)
 
         self.anonymize_columns(in_table, out_table, table_columns, columns_to_anonymize, anonymizer)
+        self.write_manifest(out_table)
 
     def get_input_table(self, in_table_name):
         in_tables = self.get_input_tables_definitions()
