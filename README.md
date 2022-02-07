@@ -1,7 +1,9 @@
 Data Anonymization Processor
 =============
 
-This processor enables you to anonymize specified columns of an input table.
+This processor enables you to anonymize specified columns of an input table. 
+In the configuration you specify the method of anonymization and the tables and the
+respective columns you wish to anonymize.
 
 **Table of contents:**
 
@@ -42,7 +44,8 @@ Sample Configuration
 Output
 ======
 
-The anonymized tables will be sent to out/tables with the same name as they have in in/tables
+The anonymized tables will be sent to out/tables with the same name as they have in in/tables. 
+Tables that are not specified to be anonymized in the configuration will be copied to out/tables.
 
 Development
 -----------

@@ -1,5 +1,7 @@
 import csv
 import logging
+import shutil
+from pathlib import Path
 from anonymization import SHAAnonymizer, MD5Anonymizer
 
 from keboola.component.base import ComponentBase
@@ -25,6 +27,9 @@ class Component(ComponentBase):
         params = self.configuration.parameters
 
         in_tables = params.get(KEY_TABLES)
+
+        non_anonymized_tables = self.get_tables_not_in_list(list(in_tables.keys()))
+        self.move_tables(non_anonymized_tables)
 
         for table_name in in_tables:
             columns = in_tables[table_name]
@@ -97,6 +102,26 @@ class Component(ComponentBase):
         else:
             raise UserException(f"{method} of anonymization/encryption is not supported, enter one from the list :"
                                 f" 'SHA', 'MD5' ")
+
+    def get_tables_not_in_list(self, list_of_tables):
+        input_tables = self.get_input_tables_definitions()
+        tables_not_in_list = []
+        for input_table in input_tables:
+            if input_table.name not in list_of_tables:
+                tables_not_in_list.append(input_table)
+        return tables_not_in_list
+
+    def move_tables(self, non_anonymized_tables):
+        for table in non_anonymized_tables:
+            logging.info(f"Table '{table.name}' not specified in configuration, moving to output non-anonymized")
+            out_table = self.create_out_table_definition(table.name)
+            self.move_file_to_out(table.full_path, out_table.full_path)
+
+    @staticmethod
+    def move_file_to_out(source, destination):
+        shutil.copy(source, destination)
+        if Path(f'{source}.manifest').exists():
+            shutil.copy(f'{source}.manifest', f'{destination}.manifest')
 
 
 if __name__ == "__main__":
