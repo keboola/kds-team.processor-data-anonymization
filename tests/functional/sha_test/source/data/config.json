@@ -1,0 +1,12 @@
+{
+  "parameters": {
+    "method": "SHA",
+    "tables_to_encrypt": {
+      "test.csv": [
+        "Type",
+        "Campaign_Name"
+      ]
+    }
+  },
+  "action": "run"
+}
