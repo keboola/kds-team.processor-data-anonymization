@@ -1,1 +1,1 @@
-fill in
+This processor enables you to anonymize specified columns of an input table.

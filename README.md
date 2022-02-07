@@ -1,57 +1,54 @@
 Data Anonymization Processor
 =============
 
-Description
+This processor enables you to anonymize specified columns of an input table.
 
 **Table of contents:**
 
 [TOC]
 
-Functionality notes
+Supported anonymization methods
 ===================
 
-Prerequisites
-=============
+- SHA (512)
+- MD5
 
-Get the API token, register application, etc.
-
-Features
-========
-
-| **Feature**             | **Note**                                      |
-|-------------------------|-----------------------------------------------|
-| Generic UI form         | Dynamic UI form                               |
-| Row Based configuration | Allows structuring the configuration in rows. |
-| oAuth                   | oAuth authentication enabled                  |
-| Incremental loading     | Allows fetching data in new increments.       |
-| Backfill mode           | Support for seamless backfill setup.          |
-| Date range filter       | Specify date range.                           |
-
-Supported endpoints
-===================
-
-If you need more endpoints, please submit your request to
+If you need more anonymization methods, please submit your request to
 [ideas.keboola.com](https://ideas.keboola.com/)
 
 Configuration
 =============
+- method : method of anonymization (possible : "MD5", "SHA")
+- tables_to_encrypt : dictionary of tables and their columns to encrypt, eg. {"table_name.csv" : ["column_1_in_table_name.csv",column_2_in_table_name.csv"]}
 
-Param 1
--------
 
-Param 2
--------
+Sample Configuration
+=============
+
+```json
+{
+  "parameters": {
+    "method": "MD5",
+    "tables_to_encrypt": {
+      "test.csv": [
+        "Email",
+        "Name"
+      ]
+    }
+  }
+}
+```
 
 Output
 ======
 
-List of tables, foreign keys, schema.
+The anonymized tables will be sent to out/tables with the same name as they have in in/tables
 
 Development
 -----------
 
-If required, change local data folder (the `CUSTOM_FOLDER` placeholder) path to
-your custom path in the `docker-compose.yml` file:
+If required, change local data folder (the `CUSTOM_FOLDER` placeholder) path to your custom path in
+the `docker-compose.yml` file:
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     volumes:
@@ -59,8 +56,7 @@ your custom path in the `docker-compose.yml` file:
       - ./CUSTOM_FOLDER:/data
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Clone this repository, init the workspace and run the component with following
-command:
+Clone this repository, init the workspace and run the component with following command:
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 git clone https://bitbucket.org/kds_consulting_team/kds-team.processor-data-anonymization/src/master/ dkds-team.processor-data-anonymization
@@ -79,5 +75,4 @@ Integration
 ===========
 
 For information about deployment and integration with KBC, please refer to the
-[deployment section of developers
-documentation](https://developers.keboola.com/extend/component/deployment/)
+[deployment section of developers documentation](https://developers.keboola.com/extend/component/deployment/)

@@ -1,1 +1,1 @@
-fill in
+Data anonymization is a type of information sanitization whose intent is privacy protection. It is the process of removing personally identifiable information from data sets,

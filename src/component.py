@@ -1,81 +1,103 @@
-"""
-Template Component main class.
-
-"""
 import csv
 import logging
-from datetime import datetime
+from anonymization import SHAAnonymizer, MD5Anonymizer
 
 from keboola.component.base import ComponentBase
 from keboola.component.exceptions import UserException
 
-# configuration variables
-KEY_API_TOKEN = '#api_token'
-KEY_PRINT_HELLO = 'print_hello'
+# type of anonymization/encryption : SHA, MD5, AES
+KEY_ENCRYPT_METHOD = "method"
 
-# list of mandatory parameters => if some is missing,
-# component will fail with readable message on initialization.
-REQUIRED_PARAMETERS = [KEY_PRINT_HELLO]
+KEY_TABLES = "tables_to_encrypt"
+
+REQUIRED_PARAMETERS = [KEY_ENCRYPT_METHOD]
 REQUIRED_IMAGE_PARS = []
 
 
 class Component(ComponentBase):
-    """
-        Extends base class for general Python components. Initializes the CommonInterface
-        and performs configuration validation.
-
-        For easier debugging the data folder is picked up by default from `../data` path,
-        relative to working directory.
-
-        If `debug` parameter is present in the `config.json`, the default logger is set to verbose DEBUG mode.
-    """
 
     def __init__(self):
         super().__init__()
 
     def run(self):
-        """
-        Main execution code
-        """
-
-        # ####### EXAMPLE TO REMOVE
-        # check for missing configuration parameters
         self.validate_configuration_parameters(REQUIRED_PARAMETERS)
         self.validate_image_parameters(REQUIRED_IMAGE_PARS)
         params = self.configuration.parameters
-        # Access parameters in data/config.json
-        if params.get(KEY_PRINT_HELLO):
-            logging.info("Hello World")
 
-        # get last state data/in/state.json from previous run
-        previous_state = self.get_state_file()
-        logging.info(previous_state.get('some_state_parameter'))
+        in_tables = params.get(KEY_TABLES)
 
-        # Create output table (Tabledefinition - just metadata)
-        table = self.create_out_table_definition('output.csv', incremental=True, primary_key=['timestamp'])
+        for table_name in in_tables:
+            columns = in_tables[table_name]
+            in_table = self.get_input_table(table_name)
+            if in_table:
+                self.anonymize_file(in_table, columns)
+            else:
+                logging.warning(f"Table : '{table_name}' is not in input tables")
 
-        # get file path of the table (data/out/tables/Features.csv)
-        out_table_path = table.full_path
-        logging.info(out_table_path)
+    def anonymize_file(self, in_table, columns):
+        out_table = self.create_out_table_definition(in_table.name)
 
-        # DO whatever and save into out_table_path
-        with open(table.full_path, mode='wt', encoding='utf-8', newline='') as out_file:
-            writer = csv.DictWriter(out_file, fieldnames=['timestamp'])
-            writer.writeheader()
-            writer.writerow({"timestamp": datetime.now().isoformat()})
+        table_columns = self.get_table_columns(in_table)
+        out_table.columns = table_columns
 
-        # Save table manifest (output.csv.manifest) from the tabledefinition
-        self.write_manifest(table)
+        anonymizer = self.get_anonymizer()
 
-        # Write new state - will be available next run
-        self.write_state_file({"some_state_parameter": "value"})
+        columns_to_anonymize = self.validate_columns_to_anonymize(columns, table_columns, in_table.name)
 
-        # ####### EXAMPLE TO REMOVE END
+        self.anonymize_columns(in_table, out_table, table_columns, columns_to_anonymize, anonymizer)
+
+    def get_input_table(self, in_table_name):
+        in_tables = self.get_input_tables_definitions()
+        return self.get_input_table_by_name(in_tables, in_table_name)
+
+    @staticmethod
+    def get_input_table_by_name(in_tables, name):
+        for table in in_tables:
+            if table.name == name:
+                return table
+
+    @staticmethod
+    def validate_columns_to_anonymize(columns, table_columns, in_table_name):
+        columns_to_anonymize = []
+        for column in columns:
+            if column in table_columns:
+                columns_to_anonymize.append(column)
+            else:
+                logging.warning(f"Column : '{column}' is not in the table {in_table_name}. "
+                                f"Make sure all columns to anonymize are within the list : {table_columns}")
+        return columns_to_anonymize
+
+    @staticmethod
+    def anonymize_columns(in_table, out_table, table_columns, columns_to_anonymize, anonymizer):
+        with open(in_table.full_path, "r") as in_file, open(out_table.full_path, "w") as out_file:
+            csv_reader = csv.DictReader(in_file)
+            csv_writer = csv.DictWriter(out_file, fieldnames=table_columns)
+            for i, row in enumerate(csv_reader):
+                annonymized_row = row
+                for column in columns_to_anonymize:
+                    annonymized_row[column] = anonymizer.encode_data(row[column])
+                csv_writer.writerow(annonymized_row)
+
+    @staticmethod
+    def get_table_columns(table):
+        with open(table.full_path) as csv_file:
+            csv_reader = csv.DictReader(csv_file)
+            dict_from_csv = dict(list(csv_reader)[0])
+            list_of_column_names = list(dict_from_csv.keys())
+        return list_of_column_names
+
+    def get_anonymizer(self):
+        params = self.configuration.parameters
+        method = params.get(KEY_ENCRYPT_METHOD)
+        if method == "SHA":
+            return SHAAnonymizer()
+        elif method == "MD5":
+            return MD5Anonymizer()
+        else:
+            raise UserException(f"{method} of anonymization/encryption is not supported, enter one from the list :"
+                                f" 'SHA', 'MD5' ")
 
 
-"""
-        Main entrypoint
-"""
 if __name__ == "__main__":
     try:
         comp = Component()
