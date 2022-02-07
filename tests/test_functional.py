@@ -1,14 +1,11 @@
-import shutil
-import json
 import os
 import unittest
-import logging
 from pathlib import Path
 from datadirtest import DataDirTester, TestDataDir
 from keboola.component import CommonInterface
 
 
-class PgpEncryptionTest(TestDataDir):
+class AnonymizationTest(TestDataDir):
     def run_component(self):
         super().run_component()
 
@@ -28,7 +25,7 @@ class PgpEncryptionTest(TestDataDir):
 class TestComponent(unittest.TestCase):
 
     def test_functional(self):
-        functional_tests = DataDirTester(test_data_dir_class=PgpEncryptionTest)
+        functional_tests = DataDirTester(test_data_dir_class=AnonymizationTest)
         functional_tests.run()
 
 
