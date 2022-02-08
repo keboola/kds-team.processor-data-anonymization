@@ -28,6 +28,8 @@ class Component(ComponentBase):
 
         in_tables = params.get(KEY_TABLES)
 
+        self.check_for_files()
+
         non_anonymized_tables = self.get_tables_not_in_list(list(in_tables.keys()))
         self.move_tables(non_anonymized_tables)
 
@@ -123,8 +125,14 @@ class Component(ComponentBase):
         if Path(f'{source.full_path}.manifest').exists():
             shutil.copy(f'{source.full_path}.manifest', f'{destination.full_path}.manifest')
         else:
-            # destination.columns = self.get_table_columns(destination)
             self.write_manifest(destination)
+
+    def check_for_files(self):
+        in_files = self.get_input_files_definitions(only_latest_files=True)
+        if in_files:
+            logging.warning("Files found instead of tables, if you want them processed, "
+                            "please first use the move files processor to move the files to tables. "
+                            "For more information check the documentation")
 
 
 if __name__ == "__main__":
