@@ -54,8 +54,6 @@ class Component(ComponentBase):
 
     def get_input_table(self, in_table_name):
         in_tables = self.get_input_tables_definitions()
-        in_files = self.get_input_files_definitions(only_latest_files=False)
-        in_tables.extend(in_files)
         return self.get_input_table_by_name(in_tables, in_table_name)
 
     @staticmethod
@@ -107,8 +105,6 @@ class Component(ComponentBase):
 
     def get_tables_not_in_list(self, list_of_tables):
         input_tables = self.get_input_tables_definitions()
-        in_files = self.get_input_files_definitions(only_latest_files=False)
-        input_tables.extend(in_files)
         tables_not_in_list = []
         for input_table in input_tables:
             logging.info(f"Table : {input_table.name} in loc : {input_table.full_path}")
@@ -120,13 +116,15 @@ class Component(ComponentBase):
         for table in non_anonymized_tables:
             logging.info(f"Table '{table.name}' not specified in configuration, moving to output non-anonymized")
             out_table = self.create_out_table_definition(table.name)
-            self.move_file_to_out(table.full_path, out_table.full_path)
+            self.move_file_to_out(table, out_table)
 
-    @staticmethod
-    def move_file_to_out(source, destination):
-        shutil.copy(source, destination)
-        if Path(f'{source}.manifest').exists():
-            shutil.copy(f'{source}.manifest', f'{destination}.manifest')
+    def move_file_to_out(self, source, destination):
+        shutil.copy(source.full_path, destination.full_path)
+        if Path(f'{source.full_path}.manifest').exists():
+            shutil.copy(f'{source.full_path}.manifest', f'{destination.full_path}.manifest')
+        else:
+            # destination.columns = self.get_table_columns(destination)
+            self.write_manifest(destination)
 
 
 if __name__ == "__main__":
