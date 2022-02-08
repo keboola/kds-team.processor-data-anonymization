@@ -3,7 +3,9 @@ Data Anonymization Processor
 
 This processor enables you to anonymize specified columns of an input table. 
 In the configuration you specify the method of anonymization and the tables and the
-respective columns you wish to anonymize.
+respective columns you wish to anonymize. 
+Specified tables and their specified columns are anonymized, the rest is passed through to out/tables. If table
+manifests exists, they are copied, else new ones are created.
 
 **Table of contents:**
 
@@ -39,6 +41,35 @@ Sample Configuration
     }
   }
 }
+```
+
+Sample configuration as a processor
+```json
+"processors": {
+    "after": [
+      {
+        "definition": {
+          "component": "keboola.processor-move-files"
+        },
+        "parameters": {
+          "direction": "tables"
+        }
+      },
+      {
+        "definition": {
+          "component": "kds-team.processor-data-anonymization"
+        },
+        "parameters": {
+          "method": "SHA",
+          "tables_to_encrypt": {
+            "test.csv": [
+              "Email"
+            ]
+          }
+        }
+      }
+    ]
+  }
 ```
 
 Output

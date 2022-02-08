@@ -34,12 +34,18 @@ class Component(ComponentBase):
         self.move_tables(non_anonymized_tables)
 
         for table_name in in_tables:
+            self.validate_column_params(in_tables[table_name])
             columns = in_tables[table_name]
             in_table = self.get_input_table(table_name)
             if in_table:
                 self.anonymize_file(in_table, columns)
             else:
                 logging.warning(f"Table : '{table_name}' is not in input tables")
+
+    def validate_column_params(self, columns):
+        if not isinstance(columns, list):
+            raise UserException(f"The tables_to_encrypt config parameter must be key value pairs where the values"
+                                f" are lists of columns not {type(columns)}")
 
     def anonymize_file(self, in_table, columns):
         out_table = self.create_out_table_definition(in_table.name)
@@ -102,8 +108,8 @@ class Component(ComponentBase):
         elif method == "MD5":
             return MD5Anonymizer()
         else:
-            raise UserException(f"{method} of anonymization/encryption is not supported, enter one from the list :"
-                                f" 'SHA', 'MD5' ")
+            raise UserException(f"{method} method of anonymization/encryption is not supported, enter "
+                                f"one from the list :  'SHA', 'MD5' ")
 
     def get_tables_not_in_list(self, list_of_tables):
         input_tables = self.get_input_tables_definitions()
