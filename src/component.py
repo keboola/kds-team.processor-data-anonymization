@@ -105,6 +105,8 @@ class Component(ComponentBase):
 
     def get_tables_not_in_list(self, list_of_tables):
         input_tables = self.get_input_tables_definitions()
+        in_files = self.get_input_files_definitions(only_latest_files=False)
+        input_tables.extend(in_files)
         tables_not_in_list = []
         for input_table in input_tables:
             logging.info(f"Table : {input_table.name} in loc : {input_table.full_path}")
