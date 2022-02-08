@@ -54,6 +54,8 @@ class Component(ComponentBase):
 
     def get_input_table(self, in_table_name):
         in_tables = self.get_input_tables_definitions()
+        in_files = self.get_input_files_definitions(only_latest_files=False)
+        in_tables.extend(in_files)
         return self.get_input_table_by_name(in_tables, in_table_name)
 
     @staticmethod
