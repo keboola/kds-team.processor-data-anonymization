@@ -107,6 +107,7 @@ class Component(ComponentBase):
         input_tables = self.get_input_tables_definitions()
         tables_not_in_list = []
         for input_table in input_tables:
+            logging.info(f"Table : {input_table.name} in loc : {input_table.full_path}")
             if input_table.name not in list_of_tables:
                 tables_not_in_list.append(input_table)
         return tables_not_in_list
