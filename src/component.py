@@ -2,6 +2,9 @@ import csv
 import logging
 import shutil
 from pathlib import Path
+import os.path as pt
+from os import listdir, makedirs
+from os.path import isfile, join
 from anonymization import SHAAnonymizer, MD5Anonymizer
 
 from keboola.component.base import ComponentBase
@@ -37,28 +40,65 @@ class Component(ComponentBase):
             self.validate_column_params(in_tables[table_name])
             columns = in_tables[table_name]
             in_table = self.get_input_table(table_name)
-            if in_table:
-                self.anonymize_file(in_table, columns)
+            in_columns = in_table.columns
+            write_columns_to_manifest = True
+            if not in_columns:
+                in_columns = self.get_table_columns(in_table, in_table.delimiter)
+                write_columns_to_manifest = False
+            if pt.isdir(in_table.full_path):
+                self.anonymize_files(in_table, columns, in_columns)
+            elif in_table:
+                self.anonymize_file(in_table.name, in_table.full_path, columns, in_columns,
+                                    delimiter=in_table.delimiter, write_columns_to_manifest=write_columns_to_manifest)
             else:
                 logging.warning(f"Table : '{table_name}' is not in input tables")
 
-    def validate_column_params(self, columns):
+    @staticmethod
+    def validate_column_params(columns):
         if not isinstance(columns, list):
             raise UserException(f"The tables_to_encrypt config parameter must be key value pairs where the values"
                                 f" are lists of columns not {type(columns)}")
 
-    def anonymize_file(self, in_table, columns):
-        out_table = self.create_out_table_definition(in_table.name)
+    def anonymize_files(self, in_table, columns, in_columns):
+        out_table = self.create_out_table_definition(in_table.name,
+                                                     is_sliced=True,
+                                                     incremental=in_table.incremental,
+                                                     primary_key=in_table.primary_key,
+                                                     table_metadata=in_table.table_metadata,
+                                                     enclosure=in_table.enclosure,
+                                                     delimiter=in_table.delimiter)
+        if in_table.columns:
+            out_table.columns = in_table.columns
 
-        table_columns = self.get_table_columns(in_table)
-        out_table.columns = table_columns
+        if not pt.exists(out_table.full_path):
+            makedirs(out_table.full_path)
+        onlyfiles = [f for f in listdir(in_table.full_path) if isfile(join(in_table.full_path, f))]
+        for file_name in onlyfiles:
+            in_file_path = pt.join(in_table.full_path, file_name)
+            out_file_path = pt.join(out_table.full_path, file_name)
+            self.anonymize_file(file_name, in_file_path, columns, in_columns,
+                                write_manifest=False,
+                                delimiter=in_table.delimiter,
+                                out_file_path=out_file_path)
+        self.write_manifest(out_table)
+
+    def anonymize_file(self, table_name, in_file_path, columns_to_anonymize, table_columns,
+                       write_manifest=True, out_file_path="", delimiter="", write_columns_to_manifest=True):
+        out_table = self.create_out_table_definition(table_name)
+        if not out_file_path:
+            out_file_path = out_table.full_path
+
+        if write_columns_to_manifest:
+            out_table.columns = table_columns
 
         anonymizer = self.get_anonymizer()
 
-        columns_to_anonymize = self.validate_columns_to_anonymize(columns, table_columns, in_table.name)
+        columns_to_anonymize = self.validate_columns_to_anonymize(columns_to_anonymize, table_columns, table_name)
 
-        self.anonymize_columns(in_table, out_table, table_columns, columns_to_anonymize, anonymizer)
-        self.write_manifest(out_table)
+        self.anonymize_columns(in_file_path, out_file_path, table_columns, columns_to_anonymize, anonymizer,
+                               delimiter)
+        if write_manifest:
+            self.write_manifest(out_table)
 
     def get_input_table(self, in_table_name):
         in_tables = self.get_input_tables_definitions()
@@ -82,10 +122,10 @@ class Component(ComponentBase):
         return columns_to_anonymize
 
     @staticmethod
-    def anonymize_columns(in_table, out_table, table_columns, columns_to_anonymize, anonymizer):
-        with open(in_table.full_path, "r") as in_file, open(out_table.full_path, "w") as out_file:
-            csv_reader = csv.DictReader(in_file)
-            csv_writer = csv.DictWriter(out_file, fieldnames=table_columns)
+    def anonymize_columns(table_path, out_table_path, table_columns, columns_to_anonymize, anonymizer, delimiter):
+        with open(table_path, "r") as in_file, open(out_table_path, "w") as out_file:
+            csv_reader = csv.DictReader(in_file, fieldnames=table_columns, delimiter=delimiter)
+            csv_writer = csv.DictWriter(out_file, fieldnames=table_columns, delimiter=delimiter)
             for i, row in enumerate(csv_reader):
                 annonymized_row = row
                 for column in columns_to_anonymize:
@@ -93,9 +133,9 @@ class Component(ComponentBase):
                 csv_writer.writerow(annonymized_row)
 
     @staticmethod
-    def get_table_columns(table):
+    def get_table_columns(table, delimiter):
         with open(table.full_path) as csv_file:
-            csv_reader = csv.DictReader(csv_file)
+            csv_reader = csv.DictReader(csv_file, delimiter=delimiter)
             dict_from_csv = dict(list(csv_reader)[0])
             list_of_column_names = list(dict_from_csv.keys())
         return list_of_column_names
@@ -127,7 +167,10 @@ class Component(ComponentBase):
             self.move_file_to_out(table, out_table)
 
     def move_file_to_out(self, source, destination):
-        shutil.copy(source.full_path, destination.full_path)
+        if pt.isfile(source.full_path):
+            shutil.copy(source.full_path, destination.full_path)
+        elif pt.isdir(source.full_path):
+            shutil.copytree(source.full_path, destination.full_path, dirs_exist_ok=True)
         if Path(f'{source.full_path}.manifest').exists():
             shutil.copy(f'{source.full_path}.manifest', f'{destination.full_path}.manifest')
         else:
