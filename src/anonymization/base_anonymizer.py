@@ -5,7 +5,7 @@ class AnonymizerException(Exception):
     pass
 
 
-class BaseAnonymizer(metaclass=abc.ABCMeta):
+class Anonymizer(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def encode_data(self, input_data):
         pass

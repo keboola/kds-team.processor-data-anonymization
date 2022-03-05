@@ -1,12 +1,12 @@
-from .base_anonymizer import BaseAnonymizer, AnonymizerException
+from .base_anonymizer import Anonymizer, AnonymizerException
 import hashlib
 
 
-class SHAAnonymizer(BaseAnonymizer):
-    def __init__(self, sha_ver="512"):
+class SHAAnonymizer(Anonymizer):
+    def __init__(self, sha_ver: str = "512") -> None:
         self.sha_ver = sha_ver
 
-    def encode_data(self, input_data):
+    def encode_data(self, input_data: str) -> str:
         encoded = input_data.encode()
         if self.sha_ver == "512":
             result = hashlib.sha512(encoded).hexdigest()
