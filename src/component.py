@@ -76,7 +76,8 @@ class Component(ComponentBase):
                                   delimiter=in_table.delimiter,
                                   in_table_path=in_table.full_path,
                                   write_columns_to_manifest=write_columns_to_manifest,
-                                  table_has_headers=table_has_headers)
+                                  table_has_headers=table_has_headers,
+                                  destination=in_table.destination)
 
     def get_table_columns(self, table: TableDefinition) -> List[str]:
         table_columns = table.columns
@@ -155,9 +156,13 @@ class Component(ComponentBase):
                          delimiter: str = "",
                          write_columns_to_manifest: bool = True,
                          write_manifest: bool = True,
-                         table_has_headers: bool = True) -> None:
+                         table_has_headers: bool = True,
+                         destination: str = None) -> None:
 
         out_table = self.create_out_table_definition(table_name)
+
+        if destination:
+            out_table.destination = destination
 
         if not out_table_path:
             out_table_path = out_table.full_path
@@ -186,6 +191,8 @@ class Component(ComponentBase):
                                                      table_metadata=in_table.table_metadata,
                                                      enclosure=in_table.enclosure,
                                                      delimiter=in_table.delimiter)
+        if in_table.destination:
+            out_table.destination = in_table.destination
         if write_columns_to_manifest and in_table_columns:
             out_table.columns = in_table.columns
         return out_table
