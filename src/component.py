@@ -18,6 +18,7 @@ from typing import Optional
 
 # type of anonymization/encryption : SHA, MD5, AES
 KEY_ENCRYPT_METHOD = "method"
+KEY_SALT = "#salt"
 
 KEY_TABLES = "tables_to_encrypt"
 
@@ -35,6 +36,8 @@ class Component(ComponentBase):
         self.validate_image_parameters(REQUIRED_IMAGE_PARS)
         params = self.configuration.parameters
 
+        salt = params.get(KEY_SALT, "")
+
         tables_to_anonymize = params.get(KEY_TABLES)
 
         # Check if files are in input instead of tables, give warning in the case of files
@@ -48,9 +51,9 @@ class Component(ComponentBase):
 
         for table_name in tables_to_anonymize:
             columns_to_anonymize = tables_to_anonymize.get(table_name)
-            self.anonymize_table(table_name, columns_to_anonymize)
+            self.anonymize_table(table_name, columns_to_anonymize, salt)
 
-    def anonymize_table(self, table_name: str, columns_to_anonymize: List):
+    def anonymize_table(self, table_name: str, columns_to_anonymize: List, salt: str = ""):
         self.validate_column_params(columns_to_anonymize)
         in_table = self.get_input_table(table_name)
 
@@ -67,12 +70,14 @@ class Component(ComponentBase):
             self._anonymize_sliced_table(in_table,
                                          in_table_columns,
                                          columns_to_anonymize,
+                                         salt,
                                          write_columns_to_manifest,
                                          table_has_headers)
         else:
             self._anonymize_table(in_table.name,
                                   columns_to_anonymize,
                                   in_table_columns,
+                                  salt,
                                   delimiter=in_table.delimiter,
                                   in_table_path=in_table.full_path,
                                   write_columns_to_manifest=write_columns_to_manifest,
@@ -123,6 +128,7 @@ class Component(ComponentBase):
                                 in_table: TableDefinition,
                                 in_table_columns: List[str],
                                 columns_to_anonymize: List[str],
+                                salt: str,
                                 write_columns_to_manifest: bool,
                                 table_has_headers: bool) -> None:
 
@@ -140,6 +146,7 @@ class Component(ComponentBase):
             self._anonymize_table(table_name,
                                   columns_to_anonymize,
                                   in_table_columns,
+                                  salt,
                                   write_manifest=False,
                                   delimiter=in_table.delimiter,
                                   in_table_path=in_table_path,
@@ -151,6 +158,7 @@ class Component(ComponentBase):
                          table_name: str,
                          columns_to_anonymize: List[str],
                          table_columns: List[str],
+                         salt: str,
                          in_table_path: str = "",
                          out_table_path: str = "",
                          delimiter: str = "",
@@ -174,7 +182,7 @@ class Component(ComponentBase):
 
         columns_to_anonymize = self.validate_columns_to_anonymize(columns_to_anonymize, table_columns, table_name)
 
-        self.anonymize_columns(in_table_path, out_table_path, table_columns, columns_to_anonymize, anonymizer,
+        self.anonymize_columns(in_table_path, out_table_path, table_columns, salt, columns_to_anonymize, anonymizer,
                                delimiter, table_has_headers, write_columns_to_manifest)
         if write_manifest:
             self.write_manifest(out_table)
@@ -226,6 +234,7 @@ class Component(ComponentBase):
     def anonymize_columns(table_path: str,
                           out_table_path: str,
                           table_columns: List[str],
+                          salt: str,
                           columns_to_anonymize: List[str],
                           anonymizer: Anonymizer,
                           delimiter: str,
@@ -243,7 +252,7 @@ class Component(ComponentBase):
                 if write_columns_to_manifest and table_has_headers and i == 0:
                     continue
                 for column in columns_to_anonymize:
-                    annonymized_row[column] = anonymizer.encode_data(row[column])
+                    annonymized_row[column] = anonymizer.encode_data("".join([salt, row[column]]))
                 csv_writer.writerow(annonymized_row)
 
     @staticmethod

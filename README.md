@@ -24,7 +24,7 @@ Configuration
 =============
 - method : method of anonymization (possible : "MD5", "SHA")
 - tables_to_encrypt : dictionary of tables and their columns to encrypt, eg. {"table_name.csv" : ["column_1_in_table_name.csv",column_2_in_table_name.csv"]}
-
+- Salt (#salt) : Salt to be added to the column before hashing
 
 Sample Configuration
 =============
@@ -33,6 +33,7 @@ Sample Configuration
 {
   "parameters": {
     "method": "MD5",
+    "#salt" : "salt_string_here",
     "tables_to_encrypt": {
       "test.csv": [
         "Email",
