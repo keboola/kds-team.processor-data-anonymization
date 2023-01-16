@@ -1,0 +1,12 @@
+{
+    "parameters": {
+        "method": "MD5",
+        "#salt": "[hidden]",
+        "tables_to_encrypt": {
+            "in.c-keboola-ex-db-snowflake-32594253.email-address.csv.gz": [
+                "email"
+            ]
+        }
+    },
+  "action": "run"
+}

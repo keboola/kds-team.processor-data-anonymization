@@ -1,0 +1,13 @@
+{
+  "parameters": {
+    "method": "SHA256",
+    "salt" : "asdlkasjdl",
+    "salt_location" : "append",
+    "tables_to_encrypt": {
+      "test.csv": [
+        "Type"
+      ]
+    }
+  },
+  "action": "run"
+}

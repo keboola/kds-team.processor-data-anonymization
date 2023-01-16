@@ -4,6 +4,9 @@ import shutil
 from pathlib import Path
 import json
 import os.path as pt
+import os
+import tempfile
+import glob
 from os import listdir, makedirs
 from os.path import isfile, join
 from anonymization import SHAAnonymizer, MD5Anonymizer, Anonymizer
@@ -15,10 +18,15 @@ from keboola.component.exceptions import UserException
 from keboola.component.dao import TableDefinition
 from typing import Any
 from typing import Optional
+from decompress import Decompressor, DecompressorException
 
 # type of anonymization/encryption : SHA, MD5, AES
 KEY_ENCRYPT_METHOD = "method"
 KEY_SALT = "#salt"
+KEY_SALT_LOCATION = "salt_location"  # prepend, append
+
+KEBOOLA_ZIPPED_EXTENSIONS: List[str] = [".gz"]
+DEFAULT_SALT_LOCATION = "prepend"
 
 KEY_TABLES = "tables_to_encrypt"
 
@@ -37,6 +45,7 @@ class Component(ComponentBase):
         params = self.configuration.parameters
 
         salt = params.get(KEY_SALT, "")
+        salt_location = params.get(KEY_SALT_LOCATION, DEFAULT_SALT_LOCATION)
 
         tables_to_anonymize = params.get(KEY_TABLES)
 
@@ -51,9 +60,9 @@ class Component(ComponentBase):
 
         for table_name in tables_to_anonymize:
             columns_to_anonymize = tables_to_anonymize.get(table_name)
-            self.anonymize_table(table_name, columns_to_anonymize, salt)
+            self.anonymize_table(table_name, columns_to_anonymize, salt, salt_location)
 
-    def anonymize_table(self, table_name: str, columns_to_anonymize: List, salt: str = ""):
+    def anonymize_table(self, table_name: str, columns_to_anonymize: List, salt: str = "", salt_location: str = ""):
         self.validate_column_params(columns_to_anonymize)
         in_table = self.get_input_table(table_name)
 
@@ -66,11 +75,22 @@ class Component(ComponentBase):
         write_columns_to_manifest = self.check_for_columns_in_manifest(in_table_manifest)
         table_has_headers = self.table_has_headers(in_table)
 
-        if self.is_sliced_table(in_table):
+        if self.is_zipped_sliced_table(in_table):
+            temp_file = self._unzip_sliced_table(in_table)
+            in_table.full_path = temp_file
             self._anonymize_sliced_table(in_table,
                                          in_table_columns,
                                          columns_to_anonymize,
                                          salt,
+                                         salt_location,
+                                         write_columns_to_manifest,
+                                         table_has_headers)
+        elif self.is_sliced_table(in_table):
+            self._anonymize_sliced_table(in_table,
+                                         in_table_columns,
+                                         columns_to_anonymize,
+                                         salt,
+                                         salt_location,
                                          write_columns_to_manifest,
                                          table_has_headers)
         else:
@@ -78,6 +98,7 @@ class Component(ComponentBase):
                                   columns_to_anonymize,
                                   in_table_columns,
                                   salt,
+                                  salt_location,
                                   delimiter=in_table.delimiter,
                                   in_table_path=in_table.full_path,
                                   write_columns_to_manifest=write_columns_to_manifest,
@@ -111,6 +132,14 @@ class Component(ComponentBase):
         return False
 
     @staticmethod
+    def is_zipped_sliced_table(table: TableDefinition) -> bool:
+        if pt.isdir(table.full_path):
+            for ext in KEBOOLA_ZIPPED_EXTENSIONS:
+                if table.full_path.endswith(ext):
+                    return True
+        return False
+
+    @staticmethod
     def get_table_manifest(table: TableDefinition) -> Optional[Dict[str, Any]]:
         manifest_path = "".join([table.full_path, ".manifest"])
         if pt.isfile(manifest_path):
@@ -129,6 +158,7 @@ class Component(ComponentBase):
                                 in_table_columns: List[str],
                                 columns_to_anonymize: List[str],
                                 salt: str,
+                                salt_location: str,
                                 write_columns_to_manifest: bool,
                                 table_has_headers: bool) -> None:
 
@@ -147,18 +177,23 @@ class Component(ComponentBase):
                                   columns_to_anonymize,
                                   in_table_columns,
                                   salt,
+                                  salt_location,
                                   write_manifest=False,
                                   delimiter=in_table.delimiter,
                                   in_table_path=in_table_path,
                                   out_table_path=out_table_path,
                                   table_has_headers=table_has_headers)
-        self.write_manifest(out_table)
+        if Path(f'{in_table.full_path}.manifest').exists():
+            shutil.copy(f'{in_table.full_path}.manifest', f'{out_table.full_path}.manifest')
+        else:
+            self.write_manifest(out_table)
 
     def _anonymize_table(self,
                          table_name: str,
                          columns_to_anonymize: List[str],
                          table_columns: List[str],
                          salt: str,
+                         salt_location: str,
                          in_table_path: str = "",
                          out_table_path: str = "",
                          delimiter: str = "",
@@ -182,8 +217,8 @@ class Component(ComponentBase):
 
         columns_to_anonymize = self.validate_columns_to_anonymize(columns_to_anonymize, table_columns, table_name)
 
-        self.anonymize_columns(in_table_path, out_table_path, table_columns, salt, columns_to_anonymize, anonymizer,
-                               delimiter, table_has_headers, write_columns_to_manifest)
+        self.anonymize_columns(in_table_path, out_table_path, table_columns, salt, salt_location, columns_to_anonymize,
+                               anonymizer, delimiter, table_has_headers, write_columns_to_manifest)
         if write_manifest:
             self.write_manifest(out_table)
 
@@ -235,6 +270,7 @@ class Component(ComponentBase):
                           out_table_path: str,
                           table_columns: List[str],
                           salt: str,
+                          salt_location: str,
                           columns_to_anonymize: List[str],
                           anonymizer: Anonymizer,
                           delimiter: str,
@@ -252,7 +288,10 @@ class Component(ComponentBase):
                 if write_columns_to_manifest and table_has_headers and i == 0:
                     continue
                 for column in columns_to_anonymize:
-                    annonymized_row[column] = anonymizer.encode_data("".join([salt, row[column]]))
+                    if salt_location == "prepend":
+                        annonymized_row[column] = anonymizer.encode_data("".join([salt, row[column]]))
+                    elif salt_location == "append":
+                        annonymized_row[column] = anonymizer.encode_data("".join([row[column], salt]))
                 csv_writer.writerow(annonymized_row)
 
     @staticmethod
@@ -266,13 +305,15 @@ class Component(ComponentBase):
     def get_anonymizer(self) -> Anonymizer:
         params = self.configuration.parameters
         method = params.get(KEY_ENCRYPT_METHOD)
-        if method == "SHA":
-            return SHAAnonymizer()
+        if method in ["SHA", "SHA512"]:
+            return SHAAnonymizer(sha_ver="512")
+        elif method == "SHA256":
+            return SHAAnonymizer(sha_ver="256")
         elif method == "MD5":
             return MD5Anonymizer()
         else:
             raise UserException(f"{method} method of anonymization/encryption is not supported, enter "
-                                f"one from the list :  'SHA', 'MD5' ")
+                                f"one from the list :  'SHA256', 'SHA512', 'MD5' ")
 
     def get_tables_not_in_list(self, list_of_tables: List[str]) -> List:
         input_tables = self.get_input_tables_definitions()
@@ -317,6 +358,38 @@ class Component(ComponentBase):
             shutil.copy(f'{source.full_path}.manifest', f'{destination.full_path}.manifest')
         else:
             self.write_manifest(destination)
+
+    def _unzip_sliced_table(self, table: TableDefinition):
+        d = Decompressor()
+        temp_dir = tempfile.mkdtemp()
+        sliced_files = self._get_in_files(table.full_path)
+        for sliced_file in sliced_files:
+            sliced_file_out = self._get_out_path(sliced_file, temp_dir)
+            try:
+                d.decompress(sliced_file, sliced_file_out)
+            except DecompressorException as decompress_exc:
+                raise UserException(decompress_exc) from decompress_exc
+
+        temp_file_loc = os.path.join(temp_dir, table.name)
+        return temp_file_loc
+
+    @staticmethod
+    def _get_in_files(table_path) -> list:
+        files = glob.glob(os.path.join(table_path, "**/*"), recursive=True)
+        return [f for f in files if not os.path.isdir(f)]
+
+    def _get_out_path(self, filepath, temp_dir_name) -> str:
+        filename, relative_dir = self._get_filename_from_path(filepath)
+        folder_name, relative_dir = self._get_filename_from_path(relative_dir, remove_ext=False)
+        out_path = os.path.join(temp_dir_name, folder_name)
+        return out_path
+
+    def _get_filename_from_path(self, file_path, remove_ext=True) -> [str, str]:
+        relative_dir = os.path.dirname(file_path).replace(self.files_in_path, '').lstrip('/').lstrip('\\')
+        filename = os.path.basename(file_path)
+        if remove_ext:
+            filename = filename.split(".")[0]
+        return filename, relative_dir
 
 
 if __name__ == "__main__":
