@@ -12,9 +12,6 @@ env:
   # KBC_STORAGE_TOKEN: ${{ secrets.KBC_STORAGE_TOKEN }} # required for running KBC tests (optional)
   # KBC_DEVELOPERPORTAL_PASSWORD: ${{ secrets.KBC_DEVELOPERPORTAL_PASSWORD }}
 
-  # Test KBC project: https://connection.keboola.com/admin/projects/5415
-  KBC_TEST_PROJECT_CONFIGS: "1089160256" # space separated list of config ids (optional)
-
 jobs:
   build:
     runs-on: ubuntu-latest
