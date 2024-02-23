@@ -1,0 +1,11 @@
+{
+  "parameters": {
+    "method": "MD5",
+    "tables_to_encrypt": {
+      "*.csv": [
+        "Type"
+      ]
+    }
+  },
+  "action": "run"
+}
