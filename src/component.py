@@ -58,8 +58,10 @@ class Component(ComponentBase):
         for table in self.get_input_tables_definitions():
             anonymize = [pattern for pattern in tables_to_anonymize.keys() if fnmatch.fnmatch(table.name, pattern)]
 
-            if anonymize:
-                columns_to_anonymize = tables_to_anonymize.get(table.name) or tables_to_anonymize.get(anonymize[0])
+            if len(anonymize) > 1:
+                raise UserException(f"Multiple patterns found for table {table.name} in the configuration")
+            elif anonymize:
+                columns_to_anonymize = tables_to_anonymize.get(anonymize[0])
                 self.anonymize_table(table.name, columns_to_anonymize, salt, salt_location)
             else:
                 logging.info(f"Table '{table.name}' not specified in configuration, moving to output non-anonymized")
