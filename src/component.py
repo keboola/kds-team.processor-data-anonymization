@@ -19,6 +19,7 @@ from keboola.component.dao import TableDefinition
 from typing import Any
 from typing import Optional
 from decompress import Decompressor, DecompressorException
+import fnmatch
 
 # type of anonymization/encryption : SHA, MD5, AES
 KEY_ENCRYPT_METHOD = "method"
@@ -54,13 +55,18 @@ class Component(ComponentBase):
         # Move files from data/in/files to data/out/files
         self.move_files()
 
-        # Find tables that are not specified to be anonymized
-        # and move them to data/out/tables along with their manifest files
-        self.move_non_anonymized_tables(tables_to_anonymize)
+        for table in self.get_input_tables_definitions():
+            anonymize = [pattern for pattern in tables_to_anonymize.keys() if fnmatch.fnmatch(table.name, pattern)]
 
-        for table_name in tables_to_anonymize:
-            columns_to_anonymize = tables_to_anonymize.get(table_name)
-            self.anonymize_table(table_name, columns_to_anonymize, salt, salt_location)
+            if len(anonymize) > 1:
+                raise UserException(f"Multiple patterns found for table {table.name} in the configuration")
+            elif anonymize:
+                columns_to_anonymize = tables_to_anonymize.get(anonymize[0])
+                self.anonymize_table(table.name, columns_to_anonymize, salt, salt_location)
+            else:
+                logging.info(f"Table '{table.name}' not specified in configuration, moving to output non-anonymized")
+                out_table = self.create_out_table_definition(table.name)
+                self.move_table_to_out(table, out_table)
 
     def anonymize_table(self, table_name: str, columns_to_anonymize: List, salt: str = "", salt_location: str = ""):
         self.validate_column_params(columns_to_anonymize)
@@ -338,16 +344,6 @@ class Component(ComponentBase):
                 shutil.copy(file.full_path, new_file.full_path)
             elif pt.isdir(file.full_path):
                 shutil.copytree(file.full_path, new_file.full_path, dirs_exist_ok=True)
-
-    def move_non_anonymized_tables(self, in_tables: Dict[str, List[str]]) -> None:
-        non_anonymized_tables = self.get_tables_not_in_list(list(in_tables.keys()))
-        self.move_tables(non_anonymized_tables)
-
-    def move_tables(self, non_anonymized_tables: List) -> None:
-        for table in non_anonymized_tables:
-            logging.info(f"Table '{table.name}' not specified in configuration, moving to output non-anonymized")
-            out_table = self.create_out_table_definition(table.name)
-            self.move_table_to_out(table, out_table)
 
     def move_table_to_out(self, source, destination):
         if pt.isfile(source.full_path):

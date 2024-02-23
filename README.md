@@ -45,6 +45,23 @@ Sample Configuration
   }
 }
 ```
+**NOTE**: Simple `*` wildcard is supported inside the table name, e.g.:
+
+```json
+{
+  "parameters": {
+    "method": "MD5",
+    "#salt" : "salt_string_here",
+    "salt_location" : "append",
+    "tables_to_encrypt": {
+      "*.csv": [
+        "Email",
+        "Name"
+      ]
+    }
+  }
+}
+```
 
 Sample configuration as a processor
 ```json
