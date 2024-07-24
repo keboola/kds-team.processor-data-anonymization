@@ -15,7 +15,7 @@ from typing import List, Dict
 
 from keboola.component.base import ComponentBase
 from keboola.component.exceptions import UserException
-from keboola.component.dao import TableDefinition
+from keboola.component.dao import TableDefinition, DataType, SupportedDataTypes
 from typing import Any
 from typing import Optional
 from decompress import Decompressor, DecompressorException
@@ -68,7 +68,8 @@ class Component(ComponentBase):
                 out_table = self.create_out_table_definition(table.name)
                 self.move_table_to_out(table, out_table)
 
-    def anonymize_table(self, table_name: str, columns_to_anonymize: List, salt: str = "", salt_location: str = ""):
+    def anonymize_table(self, table_name: str, columns_to_anonymize: List, salt: str = "",
+                        salt_location: str = ""):
         self.validate_column_params(columns_to_anonymize)
         in_table = self.get_input_table(table_name)
 
@@ -77,7 +78,6 @@ class Component(ComponentBase):
             return
 
         in_table_manifest = self.get_table_manifest(in_table)
-        in_table_columns = self.get_table_columns(in_table)
         write_columns_to_manifest = self.check_for_columns_in_manifest(in_table_manifest)
         table_has_headers = self.table_has_headers(in_table)
 
@@ -85,41 +85,34 @@ class Component(ComponentBase):
             temp_file = self._unzip_sliced_table(in_table)
             in_table.full_path = temp_file
             self._anonymize_sliced_table(in_table,
-                                         in_table_columns,
                                          columns_to_anonymize,
                                          salt,
                                          salt_location,
-                                         write_columns_to_manifest,
                                          table_has_headers)
         elif self.is_sliced_table(in_table):
             self._anonymize_sliced_table(in_table,
-                                         in_table_columns,
                                          columns_to_anonymize,
                                          salt,
                                          salt_location,
-                                         write_columns_to_manifest,
                                          table_has_headers)
         else:
-            self._anonymize_table(in_table.name,
+            self._anonymize_table(in_table,
+                                  in_table.name,
                                   columns_to_anonymize,
-                                  in_table_columns,
                                   salt,
                                   salt_location,
-                                  delimiter=in_table.delimiter,
-                                  in_table_path=in_table.full_path,
                                   write_columns_to_manifest=write_columns_to_manifest,
-                                  table_has_headers=table_has_headers,
-                                  destination=in_table.destination)
+                                  table_has_headers=table_has_headers)
 
     def get_table_columns(self, table: TableDefinition) -> List[str]:
-        table_columns = table.columns
+        table_columns = table.column_names
         if not table_columns:
             table_columns = self._get_table_columns(table, table.delimiter)
         return table_columns
 
     @staticmethod
     def table_has_headers(table: TableDefinition) -> bool:
-        if not table.columns:
+        if not table.column_names:
             return True
         return False
 
@@ -161,79 +154,94 @@ class Component(ComponentBase):
 
     def _anonymize_sliced_table(self,
                                 in_table: TableDefinition,
-                                in_table_columns: List[str],
                                 columns_to_anonymize: List[str],
                                 salt: str,
                                 salt_location: str,
-                                write_columns_to_manifest: bool,
                                 table_has_headers: bool) -> None:
 
         out_table = self.create_out_table_definition_from_in_table(in_table,
-                                                                   in_table_columns,
-                                                                   write_columns_to_manifest)
+                                                                   schema=in_table.schema)
 
         if not pt.exists(out_table.full_path):
             makedirs(out_table.full_path)
 
         sliced_files = self.get_sliced_files(in_table)
-        for table_name in sliced_files:
-            in_table_path = pt.join(in_table.full_path, table_name)
-            out_table_path = pt.join(out_table.full_path, table_name)
-            self._anonymize_table(table_name,
+        for table_file in sliced_files:
+            in_table_path = pt.join(in_table.full_path, table_file)
+            out_table_path = pt.join(out_table.full_path, table_file)
+            self._anonymize_table(in_table,
+                                  table_file,
                                   columns_to_anonymize,
-                                  in_table_columns,
                                   salt,
                                   salt_location,
                                   write_manifest=False,
-                                  delimiter=in_table.delimiter,
                                   in_table_path=in_table_path,
                                   out_table_path=out_table_path,
                                   table_has_headers=table_has_headers)
-        if Path(f'{in_table.full_path}.manifest').exists():
-            shutil.copy(f'{in_table.full_path}.manifest', f'{out_table.full_path}.manifest')
-        else:
-            self.write_manifest(out_table)
+
+        self.update_schema(out_table, columns_to_anonymize)
+
+        self.write_manifest(out_table)
+
+    def update_schema(self, out_table: TableDefinition, columns_to_anonymize: List[str]) -> None:
+        for column in columns_to_anonymize:
+            if column in out_table.schema:
+                old_datatype = out_table.schema.get(column).data_types.get("base")
+                out_table.schema.get(column).update_datatype("base",
+                                                             data_type=DataType(SupportedDataTypes.STRING,
+                                                                                old_datatype.length,
+                                                                                old_datatype.default))
 
     def _anonymize_table(self,
-                         table_name: str,
+                         in_table: TableDefinition,
+                         file_name: str,
                          columns_to_anonymize: List[str],
-                         table_columns: List[str],
                          salt: str,
                          salt_location: str,
                          in_table_path: str = "",
                          out_table_path: str = "",
-                         delimiter: str = "",
                          write_columns_to_manifest: bool = True,
                          write_manifest: bool = True,
-                         table_has_headers: bool = True,
-                         destination: str = None) -> None:
+                         table_has_headers: bool = True) -> None:
 
-        out_table = self.create_out_table_definition(table_name)
+        if in_table.column_names:
+            in_table_columns = in_table.column_names
+        else:
+            in_table_columns = self.get_table_columns(in_table)
 
-        if destination:
-            out_table.destination = destination
+        out_table = self.create_out_table_definition(file_name, schema=in_table.schema or in_table_columns)
+
+        if in_table.destination:
+            out_table.destination = in_table.destination
+
+        if not in_table_path:
+            in_table_path = in_table.full_path
 
         if not out_table_path:
             out_table_path = out_table.full_path
 
         if write_columns_to_manifest:
-            out_table.columns = table_columns
+            out_table.schema = in_table.schema
 
         anonymizer = self.get_anonymizer()
 
-        columns_to_anonymize = self.validate_columns_to_anonymize(columns_to_anonymize, table_columns, table_name)
+        columns_to_anonymize = self.validate_columns_to_anonymize(columns_to_anonymize, in_table_columns, file_name)
 
-        self.anonymize_columns(in_table_path, out_table_path, table_columns, salt, salt_location, columns_to_anonymize,
-                               anonymizer, delimiter, table_has_headers, write_columns_to_manifest)
+        self.anonymize_columns(in_table_path, out_table_path, in_table_columns, salt, salt_location,
+                               columns_to_anonymize, anonymizer, in_table.delimiter, table_has_headers,
+                               write_columns_to_manifest)
+
+        self.update_schema(out_table, columns_to_anonymize)
+
         if write_manifest:
             self.write_manifest(out_table)
 
     def create_out_table_definition_from_in_table(self,
                                                   in_table: TableDefinition,
-                                                  in_table_columns: List[str],
-                                                  write_columns_to_manifest: bool) -> TableDefinition:
+                                                  schema) -> TableDefinition:
 
         out_table = self.create_out_table_definition(in_table.name,
+                                                     schema=schema,
                                                      is_sliced=True,
                                                      incremental=in_table.incremental,
                                                      primary_key=in_table.primary_key,
@@ -242,8 +250,6 @@ class Component(ComponentBase):
                                                      delimiter=in_table.delimiter)
         if in_table.destination:
             out_table.destination = in_table.destination
-        if write_columns_to_manifest and in_table_columns:
-            out_table.columns = in_table.columns
         return out_table
 
     @staticmethod

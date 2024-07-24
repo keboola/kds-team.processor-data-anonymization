@@ -1,31 +1,23 @@
 import os
 import unittest
-from pathlib import Path
-from datadirtest import DataDirTester, TestDataDir
-from keboola.component import CommonInterface
+import logging
 
-
-class AnonymizationTest(TestDataDir):
-    def run_component(self):
-        super().run_component()
-
-    def setUp(self):
-        super().setUp()
-        source_out_files = os.path.join(self.data_dir, "source", "data", "out", "files")
-        expected_out_files = os.path.join(self.data_dir, "expected", "data", "out", "files")
-        source_out_tables = os.path.join(self.data_dir, "source", "data", "out", "tables")
-        source_in_files = os.path.join(self.data_dir, "source", "data", "in", "files")
-        Path(source_out_files).mkdir(parents=True, exist_ok=True)
-        Path(source_in_files).mkdir(parents=True, exist_ok=True)
-        Path(source_out_tables).mkdir(parents=True, exist_ok=True)
-        Path(expected_out_files).mkdir(parents=True, exist_ok=True)
-        self.ci = CommonInterface(data_folder_path=os.path.join(self.data_dir, "source", "data"))
+from datadirtest import DataDirTester
 
 
 class TestComponent(unittest.TestCase):
 
     def test_functional(self):
-        functional_tests = DataDirTester(test_data_dir_class=AnonymizationTest)
+        logging.info('Running functional tests')
+        os.environ['KBC_STACKID'] = 'connection.keboola.com'
+        os.environ['KBC_PROJECT_FEATURE_GATES'] = 'queuev2'
+        functional_tests = DataDirTester()
+        functional_tests.run()
+
+    def test_functional_types(self):
+        logging.info('Running functional tests with dtypes')
+        os.environ['KBC_DATA_TYPE_SUPPORT'] = 'authoritative'
+        functional_tests = DataDirTester(data_dir='./tests/functional_dtypes')
         functional_tests.run()
 
 
