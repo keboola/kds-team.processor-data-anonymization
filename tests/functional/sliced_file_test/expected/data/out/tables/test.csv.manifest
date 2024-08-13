@@ -1,1 +1,1 @@
-{"write_always": false, "delimiter": ",", "enclosure": "\"", "columns": ["Type", "Campaign_Name", "Status", "Start_Date", "End_Date", "Location", "Eventbrite_link"]}
+{"incremental": false, "write_always": false, "delimiter": ",", "enclosure": "\"", "columns": ["Type", "Campaign_Name", "Status", "Start_Date", "End_Date", "Location", "Eventbrite_link"]}
