@@ -1,7 +1,7 @@
-keboola.component==1.3.7
+keboola.component==1.6.8
 keboola.utils
 keboola.http-client
 mock
 py7zr
 freezegun
-https://bitbucket.org/kds_consulting_team/datadirtest/get/1.5.1.zip#egg=datadirtest
+https://bitbucket.org/kds_consulting_team/datadirtest/get/1.8.2.zip#egg=datadirtest

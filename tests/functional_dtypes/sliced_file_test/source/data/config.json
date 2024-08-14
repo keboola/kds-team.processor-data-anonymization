@@ -1,0 +1,13 @@
+{
+  "parameters": {
+    "method": "SHA",
+    "tables_to_encrypt": {
+      "test.csv": [
+        "Type",
+        "Start_Date",
+        "fake"
+      ]
+    }
+  },
+  "action": "run"
+}
