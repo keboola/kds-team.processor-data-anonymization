@@ -38,6 +38,7 @@ REQUIRED_IMAGE_PARS = []
 # Increase the CSV field size limit
 csv.field_size_limit(sys.maxsize)
 
+
 class Component(ComponentBase):
 
     def __init__(self) -> None:
