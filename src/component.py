@@ -1,6 +1,7 @@
 import csv
 import logging
 import shutil
+import sys
 from pathlib import Path
 import json
 import os.path as pt
@@ -33,6 +34,9 @@ KEY_TABLES = "tables_to_encrypt"
 
 REQUIRED_PARAMETERS = [KEY_ENCRYPT_METHOD]
 REQUIRED_IMAGE_PARS = []
+
+# Increase the CSV field size limit
+csv.field_size_limit(sys.maxsize)
 
 
 class Component(ComponentBase):
